@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version tag (for example, v0.1.0)
+        required: true
+        default: v0.1.0
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Validate release request
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Releases must be dispatched from main (got $GITHUB_REF)." >&2
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semantic version: $VERSION" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag already exists: $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build release archives
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          build_archive() {
+            local os="$1"
+            local arch="$2"
+            local format="$3"
+            local ext=""
+            if [[ "$os" == "windows" ]]; then
+              ext=".exe"
+            fi
+
+            local name="reorder_${VERSION#v}_${os}_${arch}"
+            local stage="$RUNNER_TEMP/$name"
+            mkdir -p "$stage"
+
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
+              -o "$stage/reorder$ext" ./cmd/reorder
+            cp LICENSE README.md "$stage/"
+
+            if [[ "$format" == "zip" ]]; then
+              (cd "$stage" && zip -q "$GITHUB_WORKSPACE/dist/$name.zip" "reorder$ext" LICENSE README.md)
+            else
+              tar -C "$stage" -czf "$GITHUB_WORKSPACE/dist/$name.tar.gz" "reorder$ext" LICENSE README.md
+            fi
+          }
+
+          build_archive linux amd64 tar
+          build_archive linux arm64 tar
+          build_archive darwin amd64 tar
+          build_archive darwin arm64 tar
+          build_archive windows amd64 zip
+          build_archive windows arm64 zip
+
+          (cd dist && sha256sum reorder_* > SHA256SUMS.txt)
+
+      - name: Verify embedded versions
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/version-check"
+          tar -xzf "dist/reorder_${VERSION#v}_linux_amd64.tar.gz" -C "$RUNNER_TEMP/version-check"
+          got="$($RUNNER_TEMP/version-check/reorder -version)"
+          test "$got" = "$VERSION"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$VERSION" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --generate-notes

@@ -101,6 +101,12 @@ out, changed, err := reorder.Rewrite("service.go", source, cfg)
 
 For linter/IDE integration, `PlanFile` returns a single byte-offset edit that maps directly to a Go `analysis.TextEdit`. See [`docs/upstream.md`](docs/upstream.md).
 
+## Releases
+
+Releases are dispatched from `main` with the repository's **Release** workflow and an explicit SemVer tag such as `v0.1.0`. The workflow tests the source, cross-compiles Linux/macOS/Windows binaries for amd64 and arm64, verifies the embedded CLI version, generates SHA-256 checksums, and creates the GitHub Release only after all steps pass.
+
+Release artifacts contain the binary, `LICENSE`, and `README.md`. Release creation is intentionally manual-dispatch rather than automatic-on-merge so publishing a version remains an explicit maintainer action.
+
 ## Development
 
 ```bash
