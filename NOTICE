@@ -1,0 +1,6 @@
+reorder
+Copyright 2026 reorder contributors
+
+This project independently implements declaration-order behavior compatible with
+manuelarte/funcorder. funcorder is a separate project distributed under the
+Apache License 2.0. No affiliation or endorsement is implied.

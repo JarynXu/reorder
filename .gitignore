@@ -1,0 +1,7 @@
+/reorder
+*.exe
+*.out
+coverage.out
+.DS_Store
+.idea/
+.vscode/
