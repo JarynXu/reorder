@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose an interoperability or safety improvement
+title: "feat: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the concrete limitation or workflow problem.
+    validations:
+      required: true
+  - type: textarea
+    id: funcorder
+    attributes:
+      label: funcorder compatibility
+      description: If this changes ordering semantics, link the corresponding funcorder rule/change.
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
